@@ -1,0 +1,12 @@
+Flask==3.0.3
+flask-cors==4.0.1
+Flask-SQLAlchemy==3.1.1
+scikit-learn==1.5.1
+numpy==1.26.4
+langdetect==1.0.9
+deep-translator==1.11.4
+SpeechRecognition==3.10.4
+pydub==0.25.1
+Pillow==10.4.0
+Werkzeug==3.0.3
+gunicorn==22.0.0
