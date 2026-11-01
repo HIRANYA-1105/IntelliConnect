@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntelliConnect — Support</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><circle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23131B34%22/><path d=%22M18 24a14 14 0 0 1 26-6%22 stroke=%22%232DD8C7%22 stroke-width=%224%22 fill=%22none%22 stroke-linecap=%22round%22/><path d=%22M18 24v10a8 8 0 0 0 8 8h4l6 6v-6a8 8 0 0 0 8-8v-2%22 stroke=%22%23F4F6FB%22 stroke-width=%224%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app-body">
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand-top">
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="30" height="30"><path class="logo-ring" d="M18 24a14 14 0 0 1 26-6" fill="none" stroke-width="4" stroke-linecap="round"/><path class="logo-bubble" d="M18 24v10a8 8 0 0 0 8 8h4l6 6v-6a8 8 0 0 0 8-8v-2" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="brand-name">IntelliConnect</span>
+    </div>
+
+    <button class="new-chat-btn" id="newChatBtn">+ <span>New conversation</span></button>
+
+    <div class="thread-list" id="threadList"></div>
+
+    <div class="sidebar-user">
+      <div class="avatar" id="userAvatar">?</div>
+      <div>
+        <div class="who" id="userName">—</div>
+        <div class="plan" id="userPlan">—</div>
+      </div>
+      <button class="logout-btn" id="logoutBtn">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- CHAT -->
+  <main class="chat-col">
+    <div class="chat-header">
+      <div>
+        <h2>IntelliConnect Assistant</h2>
+        <div class="sub">Trained on billing, network, and plan-change queries</div>
+      </div>
+      <span class="status-pill">● Online</span>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <form class="composer" id="composerForm">
+      <input type="text" id="composerInput" placeholder="Describe your issue — e.g. 'My internet has been down since morning'" autocomplete="off">
+      <button type="button" class="mic-btn" id="micBtn" title="Speak your issue" aria-label="Record voice message">🎤</button>
+      <button type="submit" class="send-btn">Send</button>
+    </form>
+  </main>
+
+  <!-- INSIGHT PANEL -->
+  <aside class="insight-col">
+    <div class="insight-block">
+      <h3>Detected intent</h3>
+      <span class="intent-tag" id="intentTag">Awaiting message…</span>
+      <div class="confidence-row">
+        <div class="bar-track"><div class="bar-fill" id="confidenceBar" style="width:0%"></div></div>
+        <span id="confidenceLabel">0%</span>
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h3>Escalation risk</h3>
+      <div class="risk-meter"><div class="risk-marker" id="riskMarker" style="left:8%"></div></div>
+      <div class="risk-label low" id="riskLabel">Low — model is monitoring</div>
+    </div>
+
+    <div class="insight-block">
+      <h3>Suggested next step</h3>
+      <div class="action-card" id="actionCard">
+        <strong>No action needed yet</strong>
+        Send a message and the model will read intent and sentiment together to recommend a response.
+      </div>
+      <button class="escalate-btn" id="escalateBtn" disabled>Escalate to a human agent</button>
+    </div>
+  </aside>
+
+</div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntelliConnect — Sign in</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><circle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23131B34%22/><path d=%22M18 24a14 14 0 0 1 26-6%22 stroke=%22%232DD8C7%22 stroke-width=%224%22 fill=%22none%22 stroke-linecap=%22round%22/><path d=%22M18 24v10a8 8 0 0 0 8 8h4l6 6v-6a8 8 0 0 0 8-8v-2%22 stroke=%22%23F4F6FB%22 stroke-width=%224%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-body">
+
+<div class="auth-shell">
+
+  <!-- LEFT: brand panel -->
+  <section class="brand-panel">
+    <svg class="signal-field" viewBox="0 0 600 800" preserveAspectRatio="none" aria-hidden="true">
+      <circle cx="480" cy="120" r="150" class="arc arc-1" fill="none"/>
+      <circle cx="480" cy="120" r="230" class="arc arc-2" fill="none"/>
+      <circle cx="480" cy="120" r="310" class="arc arc-3" fill="none"/>
+      <g class="nodes">
+        <circle cx="90" cy="620" r="3"/>
+        <circle cx="140" cy="560" r="2.5"/>
+        <circle cx="60" cy="520" r="2"/>
+        <circle cx="180" cy="700" r="3"/>
+        <circle cx="230" cy="640" r="2"/>
+        <line x1="90" y1="620" x2="140" y2="560" />
+        <line x1="140" y1="560" x2="60" y2="520" />
+        <line x1="90" y1="620" x2="180" y2="700" />
+        <line x1="180" y1="700" x2="230" y2="640" />
+      </g>
+    </svg>
+
+    <div class="brand-top">
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64"><path class="logo-ring" d="M18 24a14 14 0 0 1 26-6" fill="none" stroke-width="4" stroke-linecap="round"/><path class="logo-bubble" d="M18 24v10a8 8 0 0 0 8 8h4l6 6v-6a8 8 0 0 0 8-8v-2" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="brand-name">IntelliConnect</span>
+    </div>
+
+    <div class="brand-mid">
+      <h1>Support that understands the problem before you finish typing it.</h1>
+      <p class="brand-sub">An NLU-driven assistant for telecom care — it reads intent, tracks frustration, and hands off to a human the moment it should.</p>
+    </div>
+
+    <dl class="brand-stats">
+      <div><dt>24/7</dt><dd>always listening</dd></div>
+      <div><dt>NLU</dt><dd>intent detection</dd></div>
+      <div><dt>Predictive</dt><dd>escalation routing</dd></div>
+    </dl>
+  </section>
+
+  <!-- RIGHT: form panel -->
+  <section class="form-panel">
+    <div class="form-wrap">
+
+      <div class="form-head">
+        <h2 id="formTitle">Sign in to your account</h2>
+        <p id="formSub">New here? <button type="button" class="link-btn" id="toSignup">Create an account</button></p>
+      </div>
+
+      <form id="loginForm" class="auth-form" novalidate>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </label>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button type="submit" class="primary-btn">Sign in</button>
+      </form>
+
+      <form id="signupForm" class="auth-form hidden" novalidate>
+        <label class="field">
+          <span>Full name</span>
+          <input type="text" name="name" placeholder="Ananya Rao" required autocomplete="name">
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <label class="field">
+          <span>Mobile number</span>
+          <input type="tel" name="phone" placeholder="98xxxxxxxx" pattern="[0-9]{10}" required autocomplete="tel">
+        </label>
+        <label class="field">
+          <span>Telecom plan</span>
+          <select name="plan" required>
+            <option value="" disabled selected>Choose your plan</option>
+            <option>Prepaid — Basic</option>
+            <option>Prepaid — Unlimited</option>
+            <option>Postpaid — Family</option>
+            <option>Broadband — Fiber</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password">
+        </label>
+        <p class="form-error" id="signupError" role="alert"></p>
+        <button type="submit" class="primary-btn">Create account</button>
+      </form>
+
+      <p class="form-foot" id="toLoginWrap">Already registered? <button type="button" class="link-btn" id="toLogin">Sign in</button></p>
+
+    </div>
+  </section>
+
+</div>
+
+<script src="js/auth.js"></script>
+</body>
+</html>
