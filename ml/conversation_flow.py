@@ -1,38 +1,77 @@
 """
-The 4-stage resolution flow. This is what makes IntelliConnect behave
-differently from a generic telecom chatbot: instead of giving the same
-canned reply every time a customer repeats an issue, it moves through a
-real diagnostic conversation and remembers where it is.
+4-stage resolution flow, reused for every intent.
 
-  Stage 1 -- first time this issue comes up: a quick self-help fix.
-  Stage 2 -- customer says it's still broken: ask ONE targeted clarifying
-             question (the specific piece of information a real agent
-             would ask for next).
-  Stage 3 -- customer answers that question: use the answer + real backend
-             data (live outage-report counts for their pincode, their
-             actual bill history, etc.) to give a specific solution with a
-             realistic time estimate.
-  Stage 4 -- still not resolved after that, OR the escalation model (see
-             ml/escalation.py) detects high frustration at ANY point:
-             hand off to a human agent. Escalation risk always overrides
-             the stage counter -- a visibly angry customer skips straight
-             to a human, they don't have to wait through stages 1-3.
+  Stage 1 -- quick self-help fix, then "did that fix it?"
+  Stage 2 -- one targeted question (pincode, amount, etc.)
+  Stage 3 -- specific solution + realistic time estimate
+  Stage 4 -- human agent (last step)
 
-This same 4-stage shape is reused for every intent (network, billing, sim,
-plan_change, cancel, general) -- only the *content* of each stage differs
-per intent, defined in the dictionaries below.
+Extra rules: weak/unclear messages get a clarifying question,
+and "yes, fixed" replies close the issue instead of escalating.
 """
 import re
 from ml import network_monitor
 from ml.recommender import recommend_plan
 
+INTENT_LABELS = {
+    "billing": "Billing dispute",
+    "network": "Network issue",
+    "recharge": "Recharge issue",
+    "plan_change": "Plan change",
+    "sim": "SIM / device issue",
+    "cancel": "Cancellation request",
+    "general": "General inquiry",
+}
+
+# ---------------------------------------------------------------- helpers
+_KEYWORDS = [
+    ("recharge", r"recharg|top.?up|validity|not credited"),
+    ("network", r"network|signal|internet|no data|slow|call drop|coverage|wifi|broadband|router"),
+    ("billing", r"\bbill|overcharg|charged|refund|deducted"),
+    ("sim", r"\be?sims?\b|activation"),
+    ("plan_change", r"\bplan|upgrade|downgrade|cheaper"),
+    ("cancel", r"cancel|port.?out|disconnect"),
+]
+
+
+def keyword_intent(text: str):
+    """Safety net for when the classifier is unsure but the message
+    clearly contains an issue keyword."""
+    t = text.lower()
+    for intent, pattern in _KEYWORDS:
+        if re.search(pattern, t):
+            return intent
+    return None
+
+
+def classify_reply(text: str) -> str:
+    """Returns 'yes' (it's fixed / ok), 'no' (still broken) or 'other'."""
+    t = text.lower().strip()
+    words = set(re.findall(r"[a-z']+", t))
+    no_phrases = ("not working", "still", "didn't", "didnt", "not fixed",
+                  "no change", "not solved", "doesn't", "doesnt")
+    if any(p in t for p in no_phrases) or words & {"no", "nope", "not", "nahi", "ledu", "kaledu", "avvaledu"}:
+        return "no"
+    if words & {"yes", "yeah", "yep", "ok", "okay", "fixed", "solved", "resolved",
+                "sorted", "worked", "thanks", "thank", "ayindi", "bagundi"} or "working now" in t:
+        return "yes"
+    return "other"
+
+
+def clarify_reply() -> str:
+    return (
+        "I want to make sure I help with the right thing. Is your issue about: "
+        "1) network or no signal, 2) recharge not reflecting, 3) a wrong bill charge, "
+        "4) SIM problem, 5) changing your plan, or 6) cancelling? Just reply in a few words."
+    )
+
+
+def resolved_reply() -> str:
+    return "Great, glad that's sorted! If anything else comes up, just message me here."
+
 
 def _plan_recommendation(user):
-    """Pulls the customer's actual last-month usage from the database and
-    turns it into a real, numbers-backed plan recommendation -- not a
-    generic 'what matters to you' question. Falls back to a reasonable
-    default only if no usage record exists yet for this customer."""
-    from models import UsageRecord  # imported here to avoid a circular import with models.py
+    from models import UsageRecord  # avoids circular import
 
     usage = UsageRecord.query.filter_by(user_id=user.id).order_by(UsageRecord.month.desc()).first()
     if usage:
@@ -42,21 +81,19 @@ def _plan_recommendation(user):
             f"last month on your current {user.plan} plan"
         )
     else:
-        # no usage record on file yet -- still speak with the same
-        # confidence rather than admitting a data gap; fall back to a
-        # typical usage figure for this plan tier instead
         avg_daily_gb = 1.0
         usage_line = (
             f"you're averaging around {avg_daily_gb * 30:.0f} GB of data a month "
             f"on your current {user.plan} plan"
         )
-
     rec = recommend_plan(avg_daily_gb=avg_daily_gb, price_sensitivity=0.5, current_plan=user.plan)
     return rec, usage_line
 
+
 # ---------------------------------------------------------------- stage 1
 STAGE1_FIX = {
-    "network": "power-cycle your router or mobile hotspot: turn it off, wait 30 seconds, turn it back on, and give it 2 minutes to reconnect. Also double-check Airplane Mode is off.",
+    "network": "turn on Airplane Mode for 30 seconds and turn it off, then restart your phone or router and wait 2 minutes. Also check that your network mode is set to Auto (4G/5G).",
+    "recharge": "wait 10 minutes (recharges can take a little time to reflect), then restart your phone and check your balance and validity again in the app.",
     "billing": "check the exact amount and date on the SMS/email receipt for the charge that looks wrong, so we can compare it against your plan.",
     "sim": "power off your phone, remove and re-insert the SIM card, then power back on.",
     "plan_change": "think about what matters most to you -- more data, a lower price, or unlimited calling -- so I can point you to the right plan.",
@@ -79,7 +116,8 @@ def stage1_reply(intent: str, user=None) -> str:
 
 # ---------------------------------------------------------------- stage 2
 STAGE2_QUESTION = {
-    "network": "Sorry that didn't help. Could you share your pincode so I can check for reported outages in your specific area?",
+    "network": "Sorry that didn't help. Could you share your 6-digit pincode so I can check for reported outages in your area?",
+    "recharge": "Sorry about that. Was the money deducted from your account, and what was the recharge amount?",
     "billing": "Got it. Could you confirm the exact amount you were charged and roughly when?",
     "sim": "Understood. Is this a brand-new SIM, or one that was working before and just stopped?",
     "plan_change": "No problem. Would you like more data, a lower monthly price, or unlimited calling?",
@@ -101,26 +139,38 @@ def stage2_reply(intent: str, user=None) -> str:
 
 # ---------------------------------------------------------------- stage 3
 def stage3_reply(intent: str, user, answer_text: str) -> str:
-    """Uses the customer's answer to the stage-2 question, plus real
-    backend data, to produce a specific solution with a time estimate."""
     lower = answer_text.lower()
 
     if intent == "network":
-        pin_match = re.search(r"\b\d{5,6}\b", answer_text)
+        pin_match = re.search(r"\b\d{6}\b", answer_text)
         pincode = pin_match.group(0) if pin_match else user.pincode
+        note = "" if pin_match else f" (I used the pincode on your account, {pincode})"
         network_monitor.log_report(pincode, "outage")
         status = network_monitor.check_area_status(pincode)
         if status["status"] == "likely_outage":
             return (
-                f"Thanks. Checking pincode {pincode} -- {status['report_count']} other customers "
+                f"Thanks{note}. Checking pincode {pincode} -- {status['report_count']} other customers "
                 f"have reported the same issue in this area in the last hour. This is a confirmed "
-                f"area outage, our field team has already been dispatched -- expected resolution "
+                f"area outage and our field team has already been dispatched. Expected resolution "
                 f"in **2-3 hours**. You'll get an SMS the moment it's fixed."
             )
         return (
-            f"Thanks. I checked pincode {pincode} and don't see a wider outage yet, so this looks "
-            f"specific to your connection. I've raised a technician visit request -- expected "
-            f"within **4-6 hours**."
+            f"Thanks{note}. I checked pincode {pincode} and don't see a wider outage, so this looks "
+            f"specific to your connection. I've raised a technician visit request, expected "
+            f"within **4-6 hours**. If it starts working before that, just let me know."
+        )
+
+    if intent == "recharge":
+        not_deducted = any(p in lower for p in ("not deducted", "no money", "not debited", "wasn't deducted", "was not deducted"))
+        if not_deducted:
+            return (
+                "Thanks. Since no money was deducted, nothing is lost on your side. "
+                "Please try the recharge again in a few minutes. If it fails again, tell me and I'll raise it."
+            )
+        return (
+            "Thanks. I've logged this as a recharge-not-reflected case with those details. "
+            "If the payment went through, the recharge is normally credited within **30-60 minutes**. "
+            "If it can't be credited, the amount is automatically refunded in **3-5 business days**."
         )
 
     if intent == "billing":
@@ -131,10 +181,9 @@ def stage3_reply(intent: str, user, answer_text: str) -> str:
         )
 
     if intent == "sim":
-        is_new = "new" in lower
-        if is_new:
-            return "Got it -- for a new SIM, activation can take up to **30-60 minutes** after insertion. I've also flagged it for priority activation on our side."
-        return "Got it -- since it was working before, this needs a manual re-activation on our end. I've flagged it as priority -- expected within **2-4 hours**."
+        if "new" in lower:
+            return "Got it. For a new SIM, activation can take up to **30-60 minutes** after insertion. I've also flagged it for priority activation on our side."
+        return "Got it. Since it was working before, this needs a manual re-activation on our end. I've flagged it as priority, expected within **2-4 hours**."
 
     if intent == "plan_change":
         sensitivity = 0.8 if any(w in lower for w in ["price", "cheap", "budget", "low"]) else 0.3
@@ -146,17 +195,17 @@ def stage3_reply(intent: str, user, answer_text: str) -> str:
 
     if intent == "cancel":
         return (
-            "Thanks for sharing that. I've passed this exact concern to our retention team -- "
-            "they'll call you within **4-6 hours** with options specific to this, before any "
+            "Thanks for sharing that. I've passed this exact concern to our retention team. "
+            "They'll call you within **4-6 hours** with options specific to this, before any "
             "cancellation is finalized."
         )
 
-    return "Thanks for the extra detail -- let me dig into this further on my end."
+    return "Thanks for the extra detail. Let me dig into this further on my end."
 
 
 # ---------------------------------------------------------------- stage 4
 def escalate_reply(intent: str) -> str:
     return (
-        "This has gone past what I can resolve on my own -- I'm connecting you with a human "
-        "specialist now, and they'll have the full context from this conversation already."
+        "I've tried the fixes I can do from my side, so I'm connecting you with a human "
+        "specialist now. They'll have the full context from this conversation already."
     )

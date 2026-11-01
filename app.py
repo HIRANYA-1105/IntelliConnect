@@ -158,50 +158,72 @@ def chat():
     # --- 4-stage conversation flow: figure out whether this message
     # continues the issue already being worked on in this thread, or is a
     # brand-new issue (which restarts the flow at stage 1) ---
+        # safety net: classifier unsure but message has a clear issue keyword
+    if intent_result["confidence"] < 40:
+        kw_intent = conversation_flow.keyword_intent(english_text)
+        if kw_intent:
+            intent_result = dict(intent_result, intent=kw_intent, confidence=60)
+
     state = ThreadState.query.get(thread_id)
+    reply_kind = conversation_flow.classify_reply(english_text)
 
+    # brand-new thread and still unsure what it's about -> ask, don't guess
+    if state is None and intent_result["confidence"] < 40:
+        return jsonify({
+            "thread_id": thread_id,
+            "reply": lang_service.from_english(conversation_flow.clarify_reply(), lang_info["language"]),
+            "language": lang_info,
+            "translated_input": english_text,
+            "intent": "general",
+            "intent_label": "Not sure yet",
+            "confidence": intent_result["confidence"],
+            "intent_distribution": intent_result["distribution"],
+            "conversation_stage": 0,
+            "risk_score": risk_info["risk_score"],
+            "risk_level": risk_info["risk_level"],
+            "risk_explanation": risk_info["explanation"],
+            "proactive_network_alert": None,
+            "bill_alert": None,
+            "recommendation": None,
+            "handoff_summary": None,
+        })
+
+    resolved = False
     if state is None:
-        continuing = False
-    else:
-        # only treat this as a brand-new issue if the classifier is
-        # CONFIDENT it's about something different -- a short, weak-signal
-        # reply like "it didn't fix" or "no it's not working" (low
-        # confidence for whatever intent it guessed) should stay within
-        # the current flow rather than restarting it at stage 1
-        confidently_different = intent_result["intent"] != state.intent and intent_result["confidence"] >= 65
-        continuing = not confidently_different
-
-    if not continuing:
-        if state is None:
-            state = ThreadState(thread_id=thread_id, user_id=user.id)
-            db.session.add(state)
+        state = ThreadState(thread_id=thread_id, user_id=user.id)
+        db.session.add(state)
         state.intent = intent_result["intent"]
         state.stage = 1
     else:
-        state.stage = min(state.stage + 1, 4)
+        confidently_different = (
+            intent_result["intent"] != state.intent and intent_result["confidence"] >= 65
+        )
+        if confidently_different:
+            state.intent = intent_result["intent"]
+            state.stage = 1
+        elif state.stage in (1, 3) and reply_kind == "yes" and state.intent not in ("plan_change", "cancel"):
+            resolved = True  # customer says it's fixed
+        elif (state.stage == 1 and reply_kind == "other"
+              and intent_result["intent"] == state.intent and intent_result["confidence"] >= 65):
+            pass  # customer just repeated the issue, stay on stage 1
+        else:
+            state.stage = min(state.stage + 1, 4)
     db.session.commit()
 
     active_intent = state.intent
-    active_intent_label = next(
-        (v for k, v in [("billing", "Billing dispute"), ("network", "Network outage"),
-                         ("plan_change", "Plan change"), ("sim", "SIM / device issue"),
-                         ("cancel", "Cancellation request"), ("general", "General inquiry")]
-         if k == active_intent), active_intent,
-    )
+    active_intent_label = conversation_flow.INTENT_LABELS.get(active_intent, active_intent)
 
-    # escalation risk overrides the stage counter ONLY for genuinely angry
-    # messages (explicit frustration language / shouting) -- the natural
-    # 1 -> 2 -> 3 -> 4 progression (via state.stage below, capped at 4)
-    # already handles "still stuck after the full flow" correctly on its
-    # own, so this override must NOT also fire on stage 3, or the
-    # stage-3 solution never gets a chance to be shown.
     strong_frustration = has_strong_frustration(english_text)
     if risk_info["risk_level"] == "high" and strong_frustration:
         effective_stage = 4
     else:
         effective_stage = state.stage
 
-    if effective_stage == 1:
+    if resolved:
+        reply_english = conversation_flow.resolved_reply()
+        db.session.delete(state)
+        db.session.commit()
+    elif effective_stage == 1:
         reply_english = conversation_flow.stage1_reply(active_intent, user)
     elif effective_stage == 2:
         reply_english = conversation_flow.stage2_reply(active_intent, user)
